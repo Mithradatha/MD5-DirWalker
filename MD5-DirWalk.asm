@@ -88,10 +88,9 @@ extract_param PROC, pDestination:PTR BYTE
 	call scan_for_quote
 	mov edx, esi
 	call scan_for_quote
-	mov ebx, esi
-	dec ebx
-	sub ebx, edx
-	mov ecx, ebx
+	mov ecx, esi
+	dec ecx
+	sub ecx, edx
 	push esi
 	mov esi, edx
 	mov edi, pDestination
