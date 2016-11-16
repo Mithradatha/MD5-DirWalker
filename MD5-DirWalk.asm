@@ -10,23 +10,19 @@ INCLUDE macros.inc
 ExitProcess PROTO, dwExitCode:DWORD
 GetCommandLine PROTO
 
+extract_param PROTO, pDestination:PTR BYTE
+
 .data
 
-	BUFF_SIZE = 500
+	BUFF_SIZE = 16384
 
 	buffer BYTE BUFF_SIZE DUP(?)
 
 	bytesRead DWORD ?
-	bytesWritten DWORD ?
 
-	inFileName BYTE "C:\Users\<username>\Documents\Test.txt", 0
-	outFileName BYTE "C:\Users\<username>\Documents\Output.txt", 0
-
-	;inFileName BYTE ?
-	;outFileName BYTE ?
+	inFileName BYTE ?
 
 	inFileHandle HANDLE ?
-	outFileHandle HANDLE ?
 
 	S	DWORD	7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22
 		DWORD	5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20
@@ -55,29 +51,80 @@ GetCommandLine PROTO
 	C0	DWORD	098BADCFEh
 	D0	DWORD	010325476h
 
+	tailBuf BYTE 129 DUP (?)
+	Param0  BYTE 129 DUP (?)
+	Param1  BYTE 129 DUP (?)
+
+
 .code
 
 ;----------------------------------------------------------------------------------
-;	MD5_Hash
+MD5_Hash PROC
 ;
 ;	Calculates the hash value of message and returns 128 bit hash
 ;	
 ;	Receives: EAX, EBX, ECX, ....
 ;
-;	Returns: EAX = Hash value
+;	Returns: EAX = Sum
 ;----------------------------------------------------------------------------------
-MD5_Hash PROC
-
 
 	ret
 MD5_Hash ENDP
 
+
+scan_for_quote PROC
+
+L1:
+	mov al, [esi]
+	inc esi
+	cmp al, 022h
+	jne L1
+	
+	ret
+scan_for_quote ENDP
+
+extract_param PROC, pDestination:PTR BYTE
+
+	call scan_for_quote
+	mov edx, esi
+	call scan_for_quote
+	mov ebx, esi
+	dec ebx
+	sub ebx, edx
+	mov ecx, ebx
+	push esi
+	mov esi, edx
+	mov edi, pDestination
+	rep movsb
+	pop esi
+
+	ret
+extract_param ENDP
+
+get_cmdln_args PROC
+
+	pushad
+
+	mov edx, OFFSET tailBuf
+	call GetCommandTail
+	jc noTail
+
+	mov esi, edx
+	INVOKE extract_param, ADDR Param0
+	;INVOKE extract_param, ADDR Param1
+
+noTail :
+
+	popad
+
+	ret
+get_cmdln_args ENDP
+
 main PROC
 
-	;call GetCommandLine
-	;jmp THEEND
+	call get_cmdln_args
 
-	mov edx, OFFSET inFileName
+	mov edx, OFFSET Param0
 	call OpenInputFile
 	cmp eax, INVALID_HANDLE_VALUE
 	je THEEND
@@ -92,17 +139,6 @@ main PROC
 	call CloseFile
 	cmp eax, 0
 	jz THEEND
-	mov edx, OFFSET outFileName
-	call CreateOutputFile
-	cmp eax, INVALID_HANDLE_VALUE
-	je THEEND
-	mov outFileHandle, eax
-	mov eax, outFileHandle
-	mov edx, OFFSET buffer
-	mov ecx, bytesRead
-	call WriteToFile
-	jc THEEND
-	mov bytesWritten, eax
 	
 	mov eax, K + 252
 	call WriteHex
