@@ -55,8 +55,54 @@ extract_param PROTO, pDestination:PTR BYTE
 	Param0  BYTE 129 DUP (?)
 	Param1  BYTE 129 DUP (?)
 
+	A1 DWORD ?
+	B1 DWORD ?
+	C1 DWORD ?
+	D1 DWORD ?
+
+	M DWORD 16 DUP(?)
+
+	F DWORD ?
+	g DWORD ?
 
 .code
+
+num_to_str PROC
+
+	mov eax, bytesRead
+	shl eax, 3
+
+	mov ebx, 10
+	mov ecx, 0
+
+	L1:
+	mov edx, 0
+	div ebx
+	inc ecx
+	push edx
+	cmp eax, 0
+	jne L1
+
+	mov eax, 8
+	sub eax, ecx
+	mov edx, ecx
+	mov ecx, eax
+
+	L2:
+	mov buffer[esi], '0'
+	inc esi
+	loop L2
+
+	mov ecx, edx
+	L3:
+	pop edx
+	add dl, 48
+	mov buffer[esi], dl
+	inc esi
+	loop L3
+
+	ret
+num_to_str ENDP
 
 ;----------------------------------------------------------------------------------
 MD5_Hash PROC
@@ -67,6 +113,72 @@ MD5_Hash PROC
 ;
 ;	Returns: EAX = Sum
 ;----------------------------------------------------------------------------------
+
+	mov eax, bytesRead
+	call WriteDec
+	mWrite '\n'
+	mov buffer[eax], '1'
+
+	inc eax
+	shl eax, 3		; shl equ bitwise multiplication, 2**3 = 8, multiply bytes to get bits
+	and eax, 511	; and equ bitwise modulus, 2**9 - 1 = 511, modulus bits by 512 for rem
+
+	
+	call WriteDec
+	mWrite '\n'
+	
+	cmp eax, 448
+	jg bottom
+
+	mov ecx, 448	; number of zeros to pad message until 64 shy of full 512 bit chunks
+	sub ecx, eax
+	mov eax, ecx
+	jmp top
+
+	bottom:
+	call WriteDec
+	mWrite '\n'
+	sub eax, 448
+	call WriteDec
+	mWrite '\n'
+	mov edx, 512
+	sub edx, eax
+	
+	mov eax, edx
+	
+	top:
+	call WriteDec
+
+	mov ecx, eax
+	shr ecx, 3
+	mov eax, ecx
+	mWrite '/n'
+	call WriteDec
+	mov esi, bytesRead
+	inc esi
+	L1:
+	mov buffer[esi], '0'
+	inc esi
+	loop L1
+
+	mWrite '+'
+	mov eax, esi
+	call WriteDec
+
+	mWrite ':::'
+	call WriteDec
+
+	call num_to_str
+
+	mWrite '-----------'
+	mov edx, OFFSET buffer
+	call WriteString
+
+	mov esi, 0
+	mov ecx, 16
+	MLOOP:
+	;(esi * 64) + (g * 4)
+
 
 	ret
 MD5_Hash ENDP
@@ -134,13 +246,16 @@ main PROC
 	call ReadFromFile
 	jc THEEND
 	mov bytesRead, eax
+	
+	call MD5_Hash
+	
 	mov eax, inFileHandle
 	call CloseFile
 	cmp eax, 0
 	jz THEEND
-	
-	mov eax, K + 252
-	call WriteHex
+
+	;mov eax, K + 252
+	;call WriteHex
 
 THEEND:
 
