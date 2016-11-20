@@ -35,13 +35,15 @@ SET ASM_FILE=MD5-DirWalk
 :: Path to Asm File to be Assembled
 SET ASM_PATH="C:\Users\samke\Documents\Projects\VisualStudio Projects\Visual Studio 2015\Projects\Project32_VS2015"
 
-SET COMPILE_FLAGS=-nologo -c -Zi
+:: -Zi
+SET COMPILE_FLAGS=-nologo -c
 
 ml %COMPILE_FLAGS% %ASM_PATH%\%ASM_FILE%.asm > NUL
 REM IF ERRORLEVEL 1 GOTO QUIT
 
 
-SET LINK_FLAGS=/NOLOGO /DEBUG /SUBSYSTEM:CONSOLE
+:: /DEBUG
+SET LINK_FLAGS=/NOLOGO /SUBSYSTEM:CONSOLE
 
 link %LINK_FLAGS% irvine32.lib kernel32.lib user32.lib %ASM_FILE%.obj
 
@@ -63,14 +65,21 @@ SET command=
 SET param0=
 SET param1=
 
-FOR /f "tokens=1,2,3 delims= " %%A IN ("%answer%") DO (
+FOR /f "tokens=1,2,3,4 delims= " %%A IN ("%answer%") DO (
    SET command=%%A
    CALL :toLower command
    SET param0=%%B
-   SET param0="!param0:"=!"
    SET param1=%%C
-   SET param1="!param1:"=!"
 )
+
+SET params=000
+
+IF NOT DEFINED command GOTO :MAIN_LOOP
+::IF DEFINED param0 SET params=10
+::IF DEFINED param1 SET params=!params:~0,1!1
+
+SET param0="!param0:"=!"
+SET param1="!param1:"=!"
 
 IF "%command%"=="exit" GOTO :QUIT
 
@@ -79,10 +88,15 @@ IF "%command%"=="clear" (
 	CALL :dispHeader
 )
 
+IF "%command%"=="gui" (
+	"!tempFolder!\!ASM_FILE!.exe" !param0! !param1!
+)
+
 IF "%command%"=="help" (
 	ECHO.
 	ECHO  CLEAR       Clears the screen.
 	ECHO  EXIT        Quits the DirWalker program.
+	ECHO  GUI         Starts interactive environment.
 	ECHO  HASH        Computes the MD5 hash.
 	ECHO  HELP        Displays command description.
 	ECHO  MAN         Displays command usage.
@@ -92,12 +106,35 @@ IF "%command%"=="help" (
 
 IF "%command%"=="man" (
 	ECHO.
-	IF /i !param0!=="clear" ECHO  CLEAR       CLEAR && ECHO. && ECHO  Clears the screen.
-	IF /i !param0!=="exit" ECHO  EXIT        EXIT && ECHO. && ECHO  Quits the DirWalker program.
-	IF /i !param0!=="hash" ECHO  HASH        HASH [filename] && ECHO. && ECHO  Computes the MD5 hash.
-	IF /i !param0!=="help" ECHO  HELP        HELP && ECHO. && ECHO  Displays command description.
-	IF /i !param0!=="man" ECHO  MAN         MAN [command] && ECHO. && ECHO  Displays command usage.
-	IF /i !param0!=="scan" ECHO  SCAN        SCAN [directory] [filename] && ECHO. && ECHO  Scans directory and hashes each file.
+	IF /i !param0!=="clear" (
+		ECHO  CLEAR       CLEAR && ECHO. && ECHO  Clears the screen.
+		GOTO :manEnd
+	)
+	IF /i !param0!=="exit" (
+		ECHO  EXIT        EXIT && ECHO. && ECHO  Quits the DirWalker program.
+		GOTO :manEnd
+	)
+	IF /i !param0!=="gui" (
+		ECHO  GUI         GUI && ECHO. && ECHO  Starts interactive environment.
+		GOTO :manEnd
+	)
+	IF /i !param0!=="hash" (
+		ECHO  HASH        HASH [filename] ?[filename] && ECHO. && ECHO  Computes the MD5 hash.
+		GOTO :manEnd
+	)
+	IF /i !param0!=="help" (
+		ECHO  HELP        HELP && ECHO. && ECHO  Displays command description.
+		GOTO :manEnd
+	)
+	IF /i !param0!=="man" (
+		ECHO  MAN         MAN [command] && ECHO. && ECHO  Displays command usage.
+		GOTO :manEnd
+	)
+	IF /i !param0!=="scan" (
+		ECHO  SCAN        SCAN [directory] ?[filename] && ECHO. && ECHO  Scans directory and hashes each file.
+		GOTO :manEnd
+	)
+	:manEnd
 	ECHO.
 )
 
@@ -110,7 +147,7 @@ IF "%command%"=="scan" (
 
 IF "%command%"=="hash" (
 	ECHO.
-	"!tempFolder!\!ASM_FILE!.exe" !param0!
+	"!tempFolder!\!ASM_FILE!.exe"  !param0! !param1!
 	ECHO. && ECHO.
 )
 
