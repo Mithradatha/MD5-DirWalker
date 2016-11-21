@@ -7,7 +7,7 @@ SET curDate=%date:~10,4%%date:~7,2%%date:~4,2%
 
 title %cmdTitle%
 
-SET version="1.6"
+SET version="2.4"
 
 SET origin=%~dp0
 SET tempFolder=%TEMP%\%cmdTitle%%curDate%.tmp
@@ -31,7 +31,7 @@ SET LIB=%VS_HOME%\VC\LIB;C:\Irvine;%LIB%
 
 :: Asm File to be Assembled
 SET ASM_FILE=MD5-DirWalk
-
+::
 :: Path to Asm File to be Assembled
 SET ASM_PATH="C:\Users\samke\Documents\Projects\VisualStudio Projects\Visual Studio 2015\Projects\Project32_VS2015"
 
@@ -72,7 +72,7 @@ FOR /f "tokens=1,2,3,4 delims= " %%A IN ("%answer%") DO (
    SET param1=%%C
 )
 
-SET params=000
+::SET params=000
 
 IF NOT DEFINED command GOTO :MAIN_LOOP
 ::IF DEFINED param0 SET params=10
@@ -88,15 +88,21 @@ IF "%command%"=="clear" (
 	CALL :dispHeader
 )
 
-IF "%command%"=="gui" (
-	"!tempFolder!\!ASM_FILE!.exe" !param0! !param1!
-)
+::IF "%command%"=="gui" (
+	::	"!tempFolder!\!ASM_FILE!.exe" !param0! !param1!
+::)
+
+::ECHO  GUI         Starts interactive environment.
+
+::IF /i !param0!=="gui" (
+	::ECHO  GUI         GUI && ECHO. && ECHO  Starts interactive environment.
+	::GOTO :manEnd
+::)
 
 IF "%command%"=="help" (
 	ECHO.
 	ECHO  CLEAR       Clears the screen.
 	ECHO  EXIT        Quits the DirWalker program.
-	ECHO  GUI         Starts interactive environment.
 	ECHO  HASH        Computes the MD5 hash.
 	ECHO  HELP        Displays command description.
 	ECHO  MAN         Displays command usage.
@@ -112,10 +118,6 @@ IF "%command%"=="man" (
 	)
 	IF /i !param0!=="exit" (
 		ECHO  EXIT        EXIT && ECHO. && ECHO  Quits the DirWalker program.
-		GOTO :manEnd
-	)
-	IF /i !param0!=="gui" (
-		ECHO  GUI         GUI && ECHO. && ECHO  Starts interactive environment.
 		GOTO :manEnd
 	)
 	IF /i !param0!=="hash" (

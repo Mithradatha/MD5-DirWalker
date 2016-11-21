@@ -14,22 +14,23 @@ extract_param PROTO, pDestination : PTR BYTE
 
 .data
 
+	CARRIAGE_RETURN = 0Dh
+	LINE_FEED = 0Ah
 	QUOTE = 022h
 	BACK_SLASH = 05Ch
+	PERIOD = 02Eh
+	TAB = 09h
 
 	BUFF_SIZE = 16384
 
-	temp_out_name BYTE "DirWalker_Output.txt", 0
-
-	WDBUFFER_SIZE = 12
-
-	bufferL BYTE WDBUFFER_SIZE DUP(? ), 0
+	temp_out_name BYTE "_DirWalker_Output.txt", 0
 
 	curDateTime FILETIME <>
 
 	buffer BYTE BUFF_SIZE DUP(? )
 
 	bytesRead DWORD ?
+	bytesWritten DWORD ?
 
 	inFileName BYTE 129 DUP(?)
 
@@ -77,6 +78,35 @@ extract_param PROTO, pDestination : PTR BYTE
 	F DWORD ?
 	g DWORD ?
 
+	outBuffer BYTE 145 DUP (?)
+	newLine BYTE ?, CARRIAGE_RETURN, LINE_FEED
+	digest BYTE 16 DUP(?), CARRIAGE_RETURN, LINE_FEED
+
+	leftrotate MACRO num1, num2
+	.code
+	push eax
+	push ebx
+	push edx
+	mov eax, num1
+	mov ebx, num2
+
+	; the rotates cause the assembler errors because
+	; ebx contains text, not a num, due to the num_to_str
+	; function
+	mov cl, bl
+	rol eax, cl
+	mov edx, 32
+	neg ebx
+	add edx, ebx
+	mov ebx, eax
+	ror eax, cl
+
+	pop edx
+	pop ebx
+	pop eax
+
+	ENDM
+
 .code
 
 num_to_str PROC
@@ -118,84 +148,329 @@ num_to_str ENDP
 
 
 ; ----------------------------------------------------------------------------------
-MD5_Hash PROC
+load_initial_values PROC USES eax
 ;
-;	Calculates the hash value of message and returns 128 bit hash
-;
-;	Receives: EAX, EBX, ECX, ....
-;
-;	Returns: EAX = Sum
-; ----------------------------------------------------------------------------------
+		;	move initial values(a0, b0, c0, d0) into temp ones
+			;    (a1, b1, c1, d1)
+			; ----------------------------------------------------------------------------------
 
-	mov eax, bytesRead
-	call WriteDec
-	mWrite '\n'
-	mov buffer[eax], '1'
+			mov eax, a0
+			mov a1, eax
+			mov eax, b0
+			mov b1, eax
+			mov eax, c0
+			mov c1, eax
+			mov eax, d0
+			mov d1, eax
+			ret
 
-	inc eax
-	shl eax, 3; shl equ bitwise multiplication, 2 * *3 = 8, multiply bytes to get bits
-	and eax, 511; and equ bitwise modulus, 2 * *9 - 1 = 511, modulus bits by 512 for rem
+			load_initial_values ENDP
 
 
-	call WriteDec
-	mWrite '\n'
+			; ----------------------------------------------------------------------------------
+			scrambled_eggs PROC USES ebx edx
+			;    dTemp: = D
+			;    D: = C
+			;    C: = B
+			; ----------------------------------------------------------------------------------
 
-	cmp eax, 448
-	jg bottom
+			mov ebx, d1; dTemp = d1
+			mov edx, c1
+			mov d1, edx; d1 = c1
+			mov edx, b1
+			mov c1, edx; c1 = b1
+			add eax, a1
+			mov a1, ebx; mov a1, dtemp
+			ret
 
-	mov ecx, 448; number of zeros to pad message until 64 shy of full 512 bit chunks
-	sub ecx, eax
-	mov eax, ecx
-	jmp top
+			scrambled_eggs ENDP
 
-	bottom :
-	call WriteDec
-	mWrite '\n'
-	sub eax, 448
-	call WriteDec
-	mWrite '\n'
-	mov edx, 512
-	sub edx, eax
 
-	mov eax, edx
+			; ----------------------------------------------------------------------------------
+			add_to_result PROC
+			;
+		;	Adds a chunk's hash to the result a0, b0, c0, d0
+			;
+		; ----------------------------------------------------------------------------------
 
-	top :
-	call WriteDec
+			mov eax, a1
+			add eax, a0
+			mov a0, eax
 
-	mov ecx, eax
-	shr ecx, 3
-	mov eax, ecx
-	mWrite '/n'
-	call WriteDec
-	mov esi, bytesRead
-	inc esi
-	L1 :
+			mov eax, b1
+			add eax, b0
+			mov b0, eax
+			ret
+
+			add_to_result ENDP
+
+
+			; ----------------------------------------------------------------------------------
+			print_result PROC USES eax
+			;
+		;	populate the character digest with a0, b0, c0, d0 and print it
+			;
+		; ----------------------------------------------------------------------------------
+
+			mov eax, a0
+			mov DWORD PTR digest, eax
+			mov eax, b0
+			mov DWORD PTR digest + 4, eax
+			mov eax, c0
+			mov DWORD PTR digest + 8, eax
+			mov eax, d0
+			mov DWORD PTR digest + 12, eax
+
+			mov edx, offset digest
+			call WriteString
+
+			ret
+			print_result ENDP
+
+
+			; ----------------------------------------------------------------------------------
+			MD5_Hash PROC
+			;
+		;	Calculates the hash value of message and returns 128 bit hash
+			;
+		;	Receives: EAX, EBX, ECX, ....
+			;
+		;	Returns: EAX = Sum
+			; ----------------------------------------------------------------------------------
+
+			mov eax, bytesRead
+			call WriteDec
+			mWrite '\n'
+			mov buffer[eax], '1'
+
+			inc eax
+			shl eax, 3; shl equ bitwise multiplication, 2 * *3 = 8, multiply bytes to get bits
+			and eax, 511; and equ bitwise modulus, 2 * *9 - 1 = 511, modulus bits by 512 for rem
+
+
+			call WriteDec
+			mWrite '\n'
+
+			cmp eax, 448
+			jg bottom
+
+			mov ecx, 448; number of zeros to pad message until 64 shy of full 512 bit chunks
+			sub ecx, eax
+			mov eax, ecx
+			jmp top
+
+			bottom :
+		call WriteDec
+			mWrite '\n'
+			sub eax, 448
+			call WriteDec
+			mWrite '\n'
+			mov edx, 512
+			sub edx, eax
+
+			mov eax, edx
+
+			top :
+		call WriteDec
+
+			mov ecx, eax
+			shr ecx, 3
+			mov eax, ecx
+			mWrite '/n'
+			call WriteDec
+			mov esi, bytesRead
+			inc esi
+			L1 :
 		mov buffer[esi], '0'
-		inc esi
-	loop L1
+			inc esi
+			loop L1
 
-	mWrite '+'
-	mov eax, esi
-	call WriteDec
+			mWrite '+'
+			mov eax, esi
+			call WriteDec
 
-	mWrite ':::'
-	call WriteDec
+			mWrite ':::'
+			call WriteDec
 
-	call num_to_str
+			call num_to_str
 
-	mWrite '-----------'
-	mov edx, OFFSET buffer
-	call WriteString
+			mWrite '-----------'
+			mov edx, OFFSET buffer
+			call WriteString
 
-	mov esi, 0
-	mov ecx, 16
-	MLOOP:
-	; (esi * 64) + (g * 4)
+			shr esi, 6; divide esi by 64
+			mov ecx, esi; contains total number of 512 blocks
+			push ecx
+			mov esi, 0
+
+			outer_loop:
+		call load_initial_values
+			mov ecx, 16
+			round1 :
+			; less efficient method
+			COMMENT !
+			mov ebx, b0
+			mov eax, c0
+			and eax, ebx
+
+			not ebx
+			mov edx, d0
+			and ebx, edx
+			or eax, ebx; eax contains F
+			!
+
+			; xors supposedly efficient
+			mov ebx, c1
+			mov edx, d1
+			xor ebx, edx
+			mov eax, b1
+			and eax, ebx
+			xor eax, edx
+
+			call scrambled_eggs
+
+			; first parameter of leftrotate
+			add eax, [K + esi * TYPE K]
+			add eax, DWORD PTR[buffer + esi]
+
+			; second parameter of leftrotate
+			mov ebx, [S + esi * TYPE S]
+
+			leftrotate eax, ebx
+
+			mov ebx, b1
+			add ebx, eax
+			mov b1, ebx
+
+			call add_to_result
+			inc esi
+
+			loop round1
+
+			mov ecx, 16
+			round2:
+		mov eax, c1
+			mov ebx, b1
+			xor ebx, eax
+			mov edx, d1
+			and edx, ebx
+			xor eax, edx; eax is F
+
+			call scrambled_eggs
+
+			add eax, [K + esi * TYPE K]
+			push eax
+
+			; calculate index for message
+			; (5×i + 1) mod 16
+			mov eax, esi
+			mov ebx, 5
+			mul eax
+			add eax, 1
+			mov edx, 0
+			mov ebx, 16
+			div eax; edx contains remainder
+			pop eax
+			add eax, DWORD PTR[buffer + edx]
+			mov ebx, [S + esi * TYPE S]
+
+			leftrotate eax, ebx
+
+			mov ebx, b1
+			add ebx, eax
+			mov b1, ebx
+
+			call add_to_result
+			inc esi
+
+			loop round2
+
+			mov ecx, 16
+			round3:
+		mov edx, d1
+			mov ebx, c1
+			xor ebx, edx
+			mov eax, b1
+			xor eax, ebx
+
+			call scrambled_eggs
+
+			add eax, [K + esi * TYPE K]
+			push eax
+
+			; calculate index for message
+			; (3×i + 5) mod 16
+			mov eax, esi
+			mov ebx, 3
+			mul eax
+			add eax, 5
+			mov edx, 0
+			mov ebx, 16
+			div eax; edx contains remainder
+			pop eax
+			add eax, DWORD PTR[buffer + edx]
+			mov ebx, [S + esi * TYPE S]
+
+			leftrotate eax, ebx
+
+			mov ebx, b1
+			add ebx, eax
+			mov b1, ebx
+
+			call add_to_result
+			inc esi
+
+			loop round3
+
+			mov ecx, 16
+			round4:
+		mov edx, d1
+			not edx
+			mov ebx, b1
+			or ebx, edx
+			mov eax, c1
+			xor eax, ebx
+
+			call scrambled_eggs
+
+			add eax, [K + esi * TYPE K]
+			push eax
+
+			; calculate index for message
+			; (7xi) mod 16
+			mov eax, esi
+			mov ebx, 7
+			mul eax
+			mov edx, 0
+			mov ebx, 16
+			div eax; edx contains remainder
+			pop eax
+			add eax, DWORD PTR[buffer + edx]
+			mov ebx, [S + esi * TYPE S]
+
+			leftrotate eax, ebx
+
+			mov ebx, b1
+			add ebx, eax
+			mov b1, ebx
+
+			call add_to_result
+			inc esi
+
+			loop round4
+
+			dec ecx
+			cmp ecx, 0
+			jne outer_loop
 
 
-	ret
-MD5_Hash ENDP
+			call print_result
 
+			; (esi * 64) + (g * 4)
+
+
+			ret
+			MD5_Hash ENDP
 
 ; ----------------------------------------------------------------------------------
 get_quote_pos PROC
@@ -294,7 +569,7 @@ jc ERR_CODE_1
 mov bytesRead, eax
 
 ; Hash the file contents
-call MD5_Hash
+; call MD5_Hash
 
 ; Close input file
 mov eax, inFileHandle
@@ -309,70 +584,72 @@ jl CREATE_OUT_FILE
 ; Try to open existing output file
 INVOKE CreateFile, edx, GENERIC_WRITE, DO_NOT_SHARE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0
 cmp eax, INVALID_HANDLE_VALUE
-je ERR_CODE_0
+je CREATE_GIVEN
+jmp SEEK_EOF
 
 CREATE_OUT_FILE:
-; scan param0 back to front, find first index '\'
-; set direction flag
 mov edx, OFFSET Param0
-call WriteString
 call StrLength
-mWrite '+'
-call WriteDec
-std
 mov ecx, eax
-mov al, BACK_SLASH
+std
+mov al, PERIOD
 lea edi, [Param0 + ecx]
 repne scasb
-mWrite 'THIS'
-lea edx, [edi + 2]
-call WriteString
 
 cld
-add ecx, 2
+inc ecx
 mov esi, OFFSET Param0
 mov edi, OFFSET Param1
 rep movsb
-
-; push edi
-
-; INVOKE GetDateTime, ADDR curDateTime
-; mov eax, curDateTime.loDateTime
-; call WriteDec
-; and eax, 48
-
-
-;mov ecx, 4
-;pop edi
-;rep stosb
 
 mov ecx, LENGTHOF temp_out_name
 mov esi, OFFSET temp_out_name
 rep movsb
 
-mov edx, OFFSET Param0
-mWrite "Input:"
+mov edx, OFFSET Param1
 call WriteString
 
 mov edx, OFFSET Param1
-mWrite "Output:"
-call WriteString
+call CreateOutputFile
+cmp eax, INVALID_HANDLE_VALUE
+je ERR_CODE_0
+jmp SEEK_EOF
 
-; copy param0 from beginning to first index of '\' into param1
-; mov eax, "\DirWalker_OutputDATE.txt"
-; call StrLen on eax
-; mov val of len into ecx
-; store eax in param1[last]
-
-; call CreateOutputFile
-; cmp eax, INVALID_HANDLE_VALUE
-; je ERR_CODE_0
+CREATE_GIVEN:
+mov edx, OFFSET Param1
+call CreateOutputFile
+cmp eax, INVALID_HANDLE_VALUE
+je ERR_CODE_0
 
 SEEK_EOF:
-; mov outFileHandle, eax
+mov outFileHandle, eax
+INVOKE SetFilePointer, outFileHandle, 0, 0, FILE_END
 
+; Populate outBuffer
+mov edx, OFFSET Param0
+call StrLength
+mov ecx, eax
+mov edi, OFFSET outBuffer
+mov esi, OFFSET Param0
+rep movsb
+
+mov ecx, 18
+mov esi, OFFSET digest
+rep movsb
+
+add eax, 20
+
+mov edx, OFFSET outBuffer
+call WriteString
+
+; Append the hash value to the end
+INVOKE WriteFile, outFileHandle, ADDR outBuffer, eax, ADDR bytesWritten, 0
+INVOKE CloseHandle, outFileHandle
+
+jmp THEEND
 
 GUI:
+
 
 jmp THEEND
 
