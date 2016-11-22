@@ -56,8 +56,6 @@ ENDM
 	DefaultFileName BYTE "_DirWalker_Output.txt",0
 	DefaultKeyWord BYTE "DEFAULT_OUT6102",0
 
-	HexVals BYTE "0123456789ABCDEF"
-
 
 	S	DWORD	7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22
 		DWORD	5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20
@@ -104,7 +102,7 @@ ENDM
 	inFileHandle	HANDLE ?
 	outFileHandle	HANDLE ?
 
-	digest BYTE DIGEST_SZ DUP(?)
+	digest BYTE DIGEST_SZ DUP(?), CARRIAGE_RETURN, LINE_FEED
 
 	A1 DWORD ?
 	B1 DWORD ?
@@ -190,119 +188,21 @@ AddHashResult PROC
 AddHashResult ENDP
 
 
-;------------------------------------------------------
-StoreHexB PROC, Index:DWORD
-	LOCAL displaySize:DWORD
+; ----------------------------------------------------------------------------------
+PrintDigest PROC USES eax
 ;
-;	Irvine 32 Library - WriteHexB - Repurposed
-;------------------------------------------------------
-
-	DOUBLEWORD_BUFSIZE = 8
-
-.data
-	bufferLHB BYTE DOUBLEWORD_BUFSIZE DUP(?),0
-
-.code
-	pushad
-	mov displaySize,ebx
-
-	.IF EBX == 1
-		and eax,0FFh
-	.ELSE
-		.IF EBX == 2
-		  and eax,0FFFFh
-		.ELSE
-		  mov displaySize,4
-		.ENDIF
-	.ENDIF
-
-	mov edi,displaySize
-	shl edi,1
-	mov bufferLHB[edi],0
-	dec edi
-
-	mov ecx,0
-	mov ebx,16
-
-	L1:
-		mov edx,0
-		div ebx
-
-		xchg eax,edx
-		push  ebx
-		mov   ebx,OFFSET HexVals
-		xlat
-		pop   ebx
-		mov bufferLHB[edi],al
-		dec edi
-		xchg eax,edx
-
-		inc ecx
-	or eax,eax
-	jnz L1
-
-	mov eax,displaySize
-	shl eax,1
-	sub eax,ecx
-	jz  L3 
-		
-	mov ecx,eax
-
-	L2:
-		mov bufferLHB[edi],'0'
-		dec edi
-	loop L2
-
-	L3:
-	mov ecx,displaySize
-	shl ecx,1
-	inc edi
-	mov edx,OFFSET bufferLHB
-	add edx,edi
-	;call WriteString
-
-	mov eax, Index
-	mov ecx, 4
-	mov esi, OFFSET bufferLHB
-	lea edi, outBuffer[eax * 4]
-	rep movsb
-		
-
-	popad
-	
-	ret
-StoreHexB ENDP
-
-;------------------------------------------------------
-StoreHex PROC, Index:DWORD
-;
-;	Irvine 32 Library - WriteHex - Repurposed
-;------------------------------------------------------
-	
-	push ebx
-	mov  ebx,4
-	INVOKE StoreHexB, Index
-	pop  ebx
-	
-	ret
-StoreHex ENDP
-
-
-
-
-		; ----------------------------------------------------------------------------------
-		print_result PROC USES eax
-		;
-	;	populate the character digest with a0, b0, c0, d0 and print it
-		;
-	; ----------------------------------------------------------------------------------
+;	Populate the character digest with a0, b0, c0, d0 and print it
+; ----------------------------------------------------------------------------------
 
 		mov eax, a0
 		mov DWORD PTR digest, eax
+		
 		mov eax, b0
 		mov DWORD PTR digest + 4, eax
+		
 		mov eax, c0
 		mov DWORD PTR digest + 8, eax
+		
 		mov eax, d0
 		mov DWORD PTR digest + 12, eax
 
@@ -311,29 +211,29 @@ StoreHex ENDP
 		L1 :
 			mov eax, DWORD PTR[digest + esi * 4]
 			inc esi
-			INVOKE StoreHex, esi
+			call WriteHex
 		loop L1
 		
 		ret
-print_result ENDP
+PrintDigest ENDP
 
 
-		; ----------------------------------------------------------------------------------
-		MD5_Hash PROC
-		;
-	;	Calculates the hash value of message and returns 128 bit hash
-		;
-	;	Receives: EAX, EBX, ECX, ....
-		;
-	;	Returns: EAX = Sum
-		; ----------------------------------------------------------------------------------
+; ----------------------------------------------------------------------------------
+MD5_Hash PROC
+;
+;	Calculates the hash value of message and returns 128 bit hash
+;
+;	Receives: EAX, EBX, ECX, ....
+;
+;	Returns: EAX = Sum
+; ----------------------------------------------------------------------------------
 
-		shr esi, 6; divide esi by 64
-		mov ecx, esi; contains total number of 512 blocks
-		mov esi, 0
+	shr esi, 6			; divide esi by 64
+	mov ecx, esi		; contains total number of 512 blocks
+	mov esi, 0
 
-		outer_loop:
-	call LoadInits
+	outer_loop:
+		call LoadInits
 		push ecx
 		mov ecx, 16
 		round1 :
@@ -381,12 +281,12 @@ print_result ENDP
 		mov edi, esi
 
 		round2 :
-	mov eax, c1
+		mov eax, c1
 		mov ebx, b1
 		xor ebx, eax
 		mov edx, d1
 		and edx, ebx
-		xor eax, edx; eax is F
+		xor eax, edx		; eax is F
 
 		call Scramble
 
@@ -405,7 +305,7 @@ print_result ENDP
 		add eax, 1
 		mov edx, 0
 		mov ebx, 16
-		div eax; edx contains remainder
+		div eax			; edx contains remainder
 		pop eax
 
 		push edi
@@ -435,7 +335,7 @@ print_result ENDP
 		mov edi, esi
 
 		round3 :
-	mov edx, d1
+		mov edx, d1
 		mov ebx, c1
 		xor ebx, edx
 		mov eax, b1
@@ -458,7 +358,7 @@ print_result ENDP
 		add eax, 5
 		mov edx, 0
 		mov ebx, 16
-		div eax; edx contains remainder
+		div eax			; edx contains remainder
 		pop eax
 		push edi
 		add edi, edx
@@ -484,7 +384,7 @@ print_result ENDP
 
 		mov ecx, 16
 		round4:
-	mov edx, d1
+		mov edx, d1
 		not edx
 		mov ebx, b1
 		or ebx, edx
@@ -507,7 +407,7 @@ print_result ENDP
 		mul eax
 		mov edx, 0
 		mov ebx, 16
-		div eax; edx contains remainder
+		div eax			; edx contains remainder
 		pop eax
 		push edi
 		add edi, edx
@@ -531,15 +431,15 @@ print_result ENDP
 		or ecx, ecx
 		jnz round4
 
-		pop ecx
-		dec ecx
-		or ecx, ecx
-		jnz outer_loop
+	pop ecx
+	dec ecx
+	or ecx, ecx
+	jnz outer_loop
 
 
-		call print_result
+	call PrintDigest
 
-		ret
+	ret
 MD5_Hash ENDP
 
 
@@ -728,8 +628,6 @@ main PROC
 	; Hash the file contents
 	call MD5_Hash
 
-	jmp QUIT
-
 	; Validate output file param
 	mov edx, OFFSET Param1
 	INVOKE Str_compare, edx, ADDR DefaultKeyWord
@@ -787,8 +685,8 @@ main PROC
 	;call WriteString
 
 	; Append the hash value to the end
-	;INVOKE WriteFile, outFileHandle, ADDR outBuffer, DIGEST_SZ + 2, ADDR bytesWritten, 0
-	;INVOKE CloseHandle, outFileHandle
+	INVOKE WriteFile, outFileHandle, ADDR digest, DIGEST_SZ + 2, ADDR bytesWritten, 0
+	INVOKE CloseHandle, outFileHandle
 	
 	jmp QUIT
 
