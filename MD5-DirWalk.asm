@@ -119,76 +119,82 @@ ENDM
 .code
 
 ; ----------------------------------------------------------------------------------
-load_initial_values PROC USES eax
+LoadInits PROC USES eax
 ;
-	;	move initial values(a0, b0, c0, d0) into temp ones
-		;    (a1, b1, c1, d1)
-		; ----------------------------------------------------------------------------------
+;	move initial values(a0, b0, c0, d0) into temp ones
+;   (a1, b1, c1, d1)
+; ----------------------------------------------------------------------------------
 
-		mov eax, a0
-		mov a1, eax
-		mov eax, b0
-		mov b1, eax
-		mov eax, c0
-		mov c1, eax
-		mov eax, d0
-		mov d1, eax
-		ret
+	mov eax, a0
+	mov a1, eax
 
-		load_initial_values ENDP
+	mov eax, b0
+	mov b1, eax
 
+	mov eax, c0
+	mov c1, eax
 
-		; ----------------------------------------------------------------------------------
-		scrambled_eggs PROC USES eax ebx edx
-		;    dTemp: = D
-		;    D: = C
-		;    C: = B
-		; ----------------------------------------------------------------------------------
+	mov eax, d0
+	mov d1, eax
 
-		mov ebx, d1; dTemp = d1
-		mov edx, c1
-		mov d1, edx; d1 = c1
-		mov edx, b1
-		mov c1, edx; c1 = b1
-		add eax, a1
-		mov a1, ebx; mov a1, dtemp
-		ret
-
-		scrambled_eggs ENDP
+	ret
+LoadInits ENDP
 
 
-		; ----------------------------------------------------------------------------------
-		add_to_result PROC
-		;
-	;	Adds a chunk's hash to the result a0, b0, c0, d0
-		;
-	; ----------------------------------------------------------------------------------
+; ----------------------------------------------------------------------------------
+Scramble PROC USES eax ebx edx
+;    
+;	 dTemp: = D
+;    D: = C
+;    C: = B
+; ----------------------------------------------------------------------------------
 
-		mov eax, a1
-		add eax, a0
-		mov a0, eax
+	mov ebx, d1		; dTemp = d1
+	
+	mov edx, c1
+	mov d1, edx		; d1 = c1
+	
+	mov edx, b1
+	mov c1, edx		; c1 = b1
+	
+	add eax, a1
+	mov a1, ebx		; mov a1, dtemp
 
-		mov eax, b1
-		add eax, b0
-		mov b0, eax
+	ret
+Scramble ENDP
 
-		mov eax, c1
-		add eax, c0
-		mov c0, eax
 
-		mov eax, d1
-		add eax, d0
-		mov d0, eax
-		ret
+; ----------------------------------------------------------------------------------
+AddHashResult PROC
+;
+;	Adds a chunk's hash to the result a0, b0, c0, d0
+; ----------------------------------------------------------------------------------
 
-		add_to_result ENDP
+	mov eax, a1
+	add eax, a0
+	mov a0, eax
+
+	mov eax, b1
+	add eax, b0
+	mov b0, eax
+
+	mov eax, c1
+	add eax, c0
+	mov c0, eax
+
+	mov eax, d1
+	add eax, d0
+	mov d0, eax
+		
+	ret
+AddHashResult ENDP
 
 
 ;------------------------------------------------------
 StoreHexB PROC, Index:DWORD
 	LOCAL displaySize:DWORD
 ;
-;	Irvine 32 Library - WriteHexB - repurposed
+;	Irvine 32 Library - WriteHexB - Repurposed
 ;------------------------------------------------------
 
 	DOUBLEWORD_BUFSIZE = 8
@@ -253,10 +259,14 @@ StoreHexB PROC, Index:DWORD
 	inc edi
 	mov edx,OFFSET bufferLHB
 	add edx,edi
-	call WriteString
+	;call WriteString
 
-	mov esi, Index
-	mov DWORD PTR [outBuffer + esi * 4], edx
+	mov eax, Index
+	mov ecx, 4
+	mov esi, OFFSET bufferLHB
+	lea edi, outBuffer[eax * 4]
+	rep movsb
+		
 
 	popad
 	
@@ -323,7 +333,7 @@ print_result ENDP
 		mov esi, 0
 
 		outer_loop:
-	call load_initial_values
+	call LoadInits
 		push ecx
 		mov ecx, 16
 		round1 :
@@ -334,7 +344,7 @@ print_result ENDP
 		and eax, ebx
 		xor eax, edx
 
-		call scrambled_eggs
+		call Scramble
 
 		; first parameter of leftrotate
 
@@ -360,7 +370,7 @@ print_result ENDP
 		add ebx, eax
 		mov b1, ebx
 
-		call add_to_result
+		call AddHashResult
 		inc esi
 
 		dec ecx
@@ -378,7 +388,7 @@ print_result ENDP
 		and edx, ebx
 		xor eax, edx; eax is F
 
-		call scrambled_eggs
+		call Scramble
 
 		; use ecx 16 - 31 to index K and S
 		push ecx
@@ -414,7 +424,7 @@ print_result ENDP
 		add ebx, eax
 		mov b1, ebx
 
-		call add_to_result
+		call AddHashResult
 		inc esi
 
 		dec ecx
@@ -431,7 +441,7 @@ print_result ENDP
 		mov eax, b1
 		xor eax, ebx
 
-		call scrambled_eggs
+		call Scramble
 
 		; use ecx 32 - 47 to index K and S
 		push ecx
@@ -465,7 +475,7 @@ print_result ENDP
 		add ebx, eax
 		mov b1, ebx
 
-		call add_to_result
+		call AddHashResult
 		inc esi
 
 		dec ecx
@@ -481,7 +491,7 @@ print_result ENDP
 		mov eax, c1
 		xor eax, ebx
 
-		call scrambled_eggs
+		call Scramble
 
 		; use ecx 48 - 63 to index K and S
 		push ecx
@@ -514,7 +524,7 @@ print_result ENDP
 		add ebx, eax
 		mov b1, ebx
 
-		call add_to_result
+		call AddHashResult
 		inc esi
 
 		dec ecx
@@ -710,12 +720,15 @@ main PROC
 	mov bytesRead, eax
 
 	; Close input file
+	mov eax, inFileHandle
 	call CloseFile
 
 	call AppendPadding
 
 	; Hash the file contents
 	call MD5_Hash
+
+	jmp QUIT
 
 	; Validate output file param
 	mov edx, OFFSET Param1
@@ -770,12 +783,12 @@ main PROC
 	;mov esi, OFFSET digest
 	;rep movsb
 
-	mov edx, OFFSET outBuffer
-	call WriteString
+	;mov edx, OFFSET outBuffer
+	;call WriteString
 
 	; Append the hash value to the end
-	INVOKE WriteFile, outFileHandle, ADDR outBuffer, DIGEST_SZ + 2, ADDR bytesWritten, 0
-	INVOKE CloseHandle, outFileHandle
+	;INVOKE WriteFile, outFileHandle, ADDR outBuffer, DIGEST_SZ + 2, ADDR bytesWritten, 0
+	;INVOKE CloseHandle, outFileHandle
 	
 	jmp QUIT
 

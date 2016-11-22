@@ -91,7 +91,6 @@ IF "%command%"=="help" (
 )
 
 IF "%command%"=="man" (
-	SET param0="!param0!"
 	ECHO.
 	IF /i !param0!=="clear" (
 		ECHO  CLEAR       CLEAR && ECHO. && ECHO  Clears the screen.
@@ -123,18 +122,20 @@ IF "%command%"=="man" (
 
 IF "%command%"=="scan" (
 	pushd !param0!
+	ECHO.
 	FOR /r %%F IN (*) DO (
-		ECHO.
 		"!tempFolder!\!ASM_FILE!.exe" "%%F" !param1!
+		ECHO       %%F
 	)
-	ECHO. && ECHO.
+	ECHO.
 	popd
 )
 
 IF "%command%"=="hash" (
 	ECHO.
 	"!tempFolder!\!ASM_FILE!.exe"  !param0! !param1!
-	ECHO. && ECHO.
+	ECHO       !param0:"=!
+	ECHO.
 )
 
 GOTO :MAIN_LOOP
