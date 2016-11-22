@@ -7,7 +7,7 @@ SET curDate=%date:~10,4%%date:~7,2%%date:~4,2%
 
 title %cmdTitle%
 
-SET version="2.4"
+SET version=3.4
 
 SET origin=%~dp0
 SET tempFolder=%TEMP%\%cmdTitle%%curDate%.tmp
@@ -16,11 +16,11 @@ IF EXIST %tempFolder% RMDIR /s /q %tempFolder%
 MKDIR %tempFolder%
 CD %tempFolder%
 
+
 :: Visual Studio Home
 SET VS_HOME=C:\Program Files (x86)\Microsoft Visual Studio 14.0
 
 :: System Environment Path
-:: ml.exe can be found in %VS_HOME%\VC\bin
 SET PATH=%VS_HOME%\VC\bin;%VS_HOME%\Common7\IDE;%PATH%
 
 :: Include File for Irvine32
@@ -31,27 +31,22 @@ SET LIB=%VS_HOME%\VC\LIB;C:\Irvine;%LIB%
 
 :: Asm File to be Assembled
 SET ASM_FILE=MD5-DirWalk
-::
+
 :: Path to Asm File to be Assembled
 SET ASM_PATH="C:\Users\samke\Documents\Projects\VisualStudio Projects\Visual Studio 2015\Projects\Project32_VS2015"
 
-:: -Zi
+
 SET COMPILE_FLAGS=-nologo -c
 
-ml %COMPILE_FLAGS% %ASM_PATH%\%ASM_FILE%.asm > NUL
-REM IF ERRORLEVEL 1 GOTO QUIT
-
-
-:: /DEBUG
 SET LINK_FLAGS=/NOLOGO /SUBSYSTEM:CONSOLE
+
+ml %COMPILE_FLAGS% %ASM_PATH%\%ASM_FILE%.asm > NUL
 
 link %LINK_FLAGS% irvine32.lib kernel32.lib user32.lib %ASM_FILE%.obj
 
 
-SET EXECUTE_FLAGS=
 
-::/debugexe
-REM devnev %ASM_FILE%.exe %EXECUTE_FLAGS%
+SET defaultOutput="DEFAULT_OUT6102"
 
 SET input_op=" >> "
 
@@ -70,34 +65,19 @@ FOR /f "tokens=1,2,3,4 delims= " %%A IN ("%answer%") DO (
    CALL :toLower command
    SET param0=%%B
    SET param1=%%C
+   SET param0="!param0:"=!"
+   IF /i "!param1!"=="-c" SET param1=!defaultOutput!
+   SET param1="!param1:"=!"
 )
 
-::SET params=000
-
 IF NOT DEFINED command GOTO :MAIN_LOOP
-::IF DEFINED param0 SET params=10
-::IF DEFINED param1 SET params=!params:~0,1!1
-
-SET param0="!param0:"=!"
-SET param1="!param1:"=!"
 
 IF "%command%"=="exit" GOTO :QUIT
 
 IF "%command%"=="clear" (
-	CLS 
+	CLS
 	CALL :dispHeader
 )
-
-::IF "%command%"=="gui" (
-	::	"!tempFolder!\!ASM_FILE!.exe" !param0! !param1!
-::)
-
-::ECHO  GUI         Starts interactive environment.
-
-::IF /i !param0!=="gui" (
-	::ECHO  GUI         GUI && ECHO. && ECHO  Starts interactive environment.
-	::GOTO :manEnd
-::)
 
 IF "%command%"=="help" (
 	ECHO.
@@ -111,6 +91,7 @@ IF "%command%"=="help" (
 )
 
 IF "%command%"=="man" (
+	SET param0="!param0!"
 	ECHO.
 	IF /i !param0!=="clear" (
 		ECHO  CLEAR       CLEAR && ECHO. && ECHO  Clears the screen.
@@ -121,7 +102,7 @@ IF "%command%"=="man" (
 		GOTO :manEnd
 	)
 	IF /i !param0!=="hash" (
-		ECHO  HASH        HASH [filename] ?[filename] && ECHO. && ECHO  Computes the MD5 hash.
+		ECHO  HASH        HASH [filename] ?[filename] ?[-c] && ECHO. && ECHO  Computes the MD5 hash.
 		GOTO :manEnd
 	)
 	IF /i !param0!=="help" (
@@ -133,7 +114,7 @@ IF "%command%"=="man" (
 		GOTO :manEnd
 	)
 	IF /i !param0!=="scan" (
-		ECHO  SCAN        SCAN [directory] ?[filename] && ECHO. && ECHO  Scans directory and hashes each file.
+		ECHO  SCAN        SCAN [directory] ?[filename] ?[-c] && ECHO. && ECHO  Scans directory and hashes each file.
 		GOTO :manEnd
 	)
 	:manEnd
@@ -141,10 +122,13 @@ IF "%command%"=="man" (
 )
 
 IF "%command%"=="scan" (
-	TREE .
+	pushd !param0!
 	FOR /r %%F IN (*) DO (
-		ECHO %%F
+		ECHO.
+		"!tempFolder!\!ASM_FILE!.exe" "%%F" !param1!
 	)
+	ECHO. && ECHO.
+	popd
 )
 
 IF "%command%"=="hash" (
@@ -157,7 +141,6 @@ GOTO :MAIN_LOOP
 
 :QUIT
 CD %origin%
-ECHO %tempFolder%
 RMDIR /s /q %tempFolder%
 
 GOTO :END
@@ -168,7 +151,8 @@ GOTO :eof
 
 :dispHeader
 ECHO.
-ECHO  MD5 Directory Walker  ---  Version %version% 2016
+ECHO  MD5 Directory Walker [Version %version%]
+ECHO  (c) 2016 USSR. All rights reserved.
 ECHO.
 GOTO :eof
 
